@@ -66,34 +66,54 @@ fun MainScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(34.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Brush.linearGradient(listOf(WhiteAccent, AccentGold))),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.MenuBook,
-                                contentDescription = null,
-                                tint = ObsidianBackground,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = screenTitle,
-                            style = MaterialTheme.typography.titleLarge.copy(
+                            text = "PREMIUM PLAN",
+                            style = MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = PremiumTextPrimary,
-                                fontFamily = FontFamily.SansSerif,
-                                letterSpacing = 0.5.sp
+                                color = PremiumTextSecondary.copy(alpha = 0.5f),
+                                letterSpacing = 2.sp
                             )
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(Brush.linearGradient(listOf(WhiteAccent, AccentGold))),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.MenuBook,
+                                    contentDescription = null,
+                                    tint = ObsidianBackground,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = screenTitle,
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = PremiumTextPrimary,
+                                    letterSpacing = 0.5.sp
+                                )
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "v2.0",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    color = PremiumTextSecondary.copy(alpha = 0.4f),
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
