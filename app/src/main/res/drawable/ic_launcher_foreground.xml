@@ -1,0 +1,35 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Gradient Background shadow element for premium visual weight -->
+    <path
+        android:pathData="M54,18 C73.88,18 90,34.12 90,54 C90,73.88 73.88,90 54,90 C34.12,90 18,73.88 18,54 C18,34.12 34.12,18 54,18 Z"
+        android:fillColor="#141418" />
+
+    <!-- Pure gold decorative progress rings -->
+    <path
+        android:pathData="M54,22 C71.67,22 86,36.33 86,54 C86,71.67 71.67,86 54,86 C36.33,86 22,71.67 22,54 C22,36.33 36.33,22 54,22 Z"
+        android:strokeColor="#FFD43F"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+
+    <!-- Premium Star Sparkle / Intelligence symbol (Centered) -->
+    <path
+        android:pathData="M54,34 L57,47 L70,50 L57,53 L54,66 L51,53 L38,50 L51,47 Z"
+        android:fillColor="#FFFFFF" />
+
+    <!-- Open Book / Education Icon at bottom overlapping -->
+    <path
+        android:pathData="M30,70 Q42,66 54,72 Q66,66 78,70 L78,52 Q66,48 54,54 Q42,48 30,52 Z"
+        android:fillColor="#FFF099" />
+
+    <!-- Pen / Quill representing work progress -->
+    <path
+        android:pathData="M66,40 L72,46 L58,60 L52,54 Z"
+        android:fillColor="#FFFFFF" />
+
+</vector>

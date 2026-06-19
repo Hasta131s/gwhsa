@@ -1,0 +1,6 @@
+{
+  "name": "Ödev Pro",
+  "description": "Premium temalı yapay zeka destekli ödev asistanı, görsel analiz, sohbet robotu, çalışma planı ajandası ve ilerleme raporu uygulaması.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
