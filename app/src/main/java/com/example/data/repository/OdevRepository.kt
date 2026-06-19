@@ -76,19 +76,114 @@ class OdevRepository(private val db: AppDatabase) {
         progressLogDao.clearLogs()
     }
 
-    // --- Gemini API integrations ---
+    // --- Gemini / Bosfor Lab API integrations ---
     
     suspend fun solveHomeworkWithGemini(
         bitmap: Bitmap?,
         userInputPrompt: String?
     ): OdevSolveResponse = withContext(Dispatchers.IO) {
+        var questionText = userInputPrompt ?: "Görsel Soru"
+        var customImageUrl: String? = null
+        var ocrSuccess = false
+
+        // 1. Try Bosfor Soru (OCR) API if bitmap is present
+        if (bitmap != null) {
+            try {
+                // First upload image to Bosfor Lab host
+                val outputStream = ByteArrayOutputStream()
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 85, outputStream)
+                val imageBytes = outputStream.toByteArray()
+                val uploadResponse = uploadImageToServer("https://bosforlab.online/upload.php", imageBytes, "odev_upload.jpg")
+                
+                if (uploadResponse.success && !uploadResponse.image_url.isNullOrBlank()) {
+                    customImageUrl = uploadResponse.image_url
+                    // Query Soru API with image url
+                    val soruResponse = RetrofitClient.bosforApiService.analyzeSoru(customImageUrl)
+                    if (soruResponse.success && !soruResponse.metin.isNullOrBlank()) {
+                        questionText = soruResponse.metin
+                        ocrSuccess = true
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        // 2. Try answering with Bosfor AI Chatbot API
+        try {
+            val solverPrompt = buildString {
+                append(questionText)
+                if (!userInputPrompt.isNullOrBlank() && questionText != userInputPrompt) {
+                    append("\nEk Olarak Not: ").append(userInputPrompt)
+                }
+            }
+            val chatResponse = RetrofitClient.bosforApiService.sendChatQuestion(solverPrompt)
+            val cevapText = chatResponse.cevap
+
+            if (!cevapText.isNullOrBlank()) {
+                // Determine Correct Option based on cevapText content
+                var correctOption = "B" // Default to B or parse
+                val upperCevap = cevapText.uppercase()
+                when {
+                    upperCevap.contains("CEVAP A") || upperCevap.contains("SEÇENEK A") || upperCevap.contains("A ŞIKKI") || upperCevap.contains("DOĞRU CEVAP: A") -> correctOption = "A"
+                    upperCevap.contains("CEVAP B") || upperCevap.contains("SEÇENEK B") || upperCevap.contains("B ŞIKKI") || upperCevap.contains("DOĞRU CEVAP: B") -> correctOption = "B"
+                    upperCevap.contains("CEVAP C") || upperCevap.contains("SEÇENEK C") || upperCevap.contains("C ŞIKKI") || upperCevap.contains("DOĞRU CEVAP: C") -> correctOption = "C"
+                    upperCevap.contains("CEVAP D") || upperCevap.contains("SEÇENEK D") || upperCevap.contains("D ŞIKKI") || upperCevap.contains("DOĞRU CEVAP: D") -> correctOption = "D"
+                    upperCevap.contains("CEVAP E") || upperCevap.contains("SEÇENEK E") || upperCevap.contains("E ŞIKKI") || upperCevap.contains("DOĞRU CEVAP: E") -> correctOption = "E"
+                }
+
+                // Classify category
+                var subjectCategory = "Matematik"
+                val lowerQuest = questionText.lowercase()
+                when {
+                    lowerQuest.contains("problem") || lowerQuest.contains("denklem") || lowerQuest.contains("toplam") || lowerQuest.contains("çarpm") || lowerQuest.contains("bölm") || lowerQuest.contains("çıkar") || lowerQuest.contains("sayı") -> subjectCategory = "Matematik"
+                    lowerQuest.contains("türkçe") || lowerQuest.contains("paragraf") || lowerQuest.contains("anlam") || lowerQuest.contains("yazım") || lowerQuest.contains("dil") || lowerQuest.contains("edebiyat") -> subjectCategory = "Türkçe"
+                    lowerQuest.contains("fizik") || lowerQuest.contains("kimya") || lowerQuest.contains("biyoloji") || lowerQuest.contains("fen") || lowerQuest.contains("kuvvet") || lowerQuest.contains("enerji") -> subjectCategory = "Fen Bilgisi"
+                    lowerQuest.contains("tarih") || lowerQuest.contains("coğrafya") || lowerQuest.contains("sosyal") || lowerQuest.contains("vatandaş") -> subjectCategory = "Sosyal Bilgiler"
+                    lowerQuest.contains("ingilizce") || lowerQuest.contains("english") || lowerQuest.contains("word") || lowerQuest.contains("translation") -> subjectCategory = "İngilizce"
+                    else -> subjectCategory = "Diğer"
+                }
+
+                val optionsBreakdown = mutableMapOf<String, String>()
+                for (opt in listOf("A", "B", "C", "D", "E")) {
+                    if (opt == correctOption) {
+                        optionsBreakdown[opt] = "Analiz sonucuna göre bu doğru seçenektir."
+                    } else {
+                        optionsBreakdown[opt] = "Çözüm adımlarına göre bu şık yanlıştır."
+                    }
+                }
+
+                val response = OdevSolveResponse(
+                    question = questionText,
+                    correct_option = correctOption,
+                    explanation = cevapText,
+                    options_breakdown = optionsBreakdown,
+                    subject_category = subjectCategory
+                )
+
+                // Save to local progress automatically
+                addProgressLog(
+                    ProgressLog(
+                        questionText = response.question,
+                        category = response.subject_category,
+                        selectedAnswer = response.correct_option,
+                        correctAnswer = response.correct_option,
+                        explanation = response.explanation,
+                        isCorrect = true
+                    )
+                )
+
+                return@withContext response
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // 3. Fallback to Gemini if Bosfor API calls failed or did not return text
         val apiKey = BuildConfig.GEMINI_API_KEY
         val modelName = "gemini-3.5-flash"
-
-        // Build Parts
         val parts = mutableListOf<Part>()
         
-        // Add prompt instruction
         val promptText = buildString {
             append("Aşağıdaki ödev sorusunu analiz et.")
             if (!userInputPrompt.isNullOrBlank()) {
@@ -109,7 +204,6 @@ class OdevRepository(private val db: AppDatabase) {
         
         parts.add(Part(text = promptText))
 
-        // If bitmap is present, convert to Base64 inline data
         if (bitmap != null) {
             val outputStream = ByteArrayOutputStream()
             bitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
@@ -133,30 +227,27 @@ class OdevRepository(private val db: AppDatabase) {
             val rawJson = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
                 ?: throw Exception("Boş yapay zeka cevabı alındı.")
             
-            // Parse response
             val adapter = moshi.adapter(OdevSolveResponse::class.java)
             val parsedResult = adapter.fromJson(rawJson)
                 ?: throw Exception("Yapay zeka çıktısı çözümlenemedi (JSON ayrıştırma hatası).")
             
-            // Save to local progress logs automatically!
             val progressLog = ProgressLog(
                 questionText = parsedResult.question,
                 category = parsedResult.subject_category,
                 selectedAnswer = parsedResult.correct_option,
                 correctAnswer = parsedResult.correct_option,
                 explanation = parsedResult.explanation,
-                isCorrect = true // As parsed from AI
+                isCorrect = true
             )
             addProgressLog(progressLog)
 
             parsedResult
         } catch (e: Exception) {
             e.printStackTrace()
-            // fallback structure
             OdevSolveResponse(
                 question = userInputPrompt ?: "Görsel Soru",
                 correct_option = "-",
-                explanation = "Hata oluştu: ${e.localizedMessage}. Lütfen internet bağlantınızı veya API anahtarınızı kontrol edin.",
+                explanation = "Hata oluştu: ${e.localizedMessage}. Lütfen internet bağlantınızı kontrol edin.",
                 options_breakdown = mapOf("-" to "Hata nedeniyle detaylar yüklenemedi."),
                 subject_category = "Diğer"
             )
@@ -168,29 +259,30 @@ class OdevRepository(private val db: AppDatabase) {
         latestPrompt: String,
         history: List<ChatMessage>
     ): String = withContext(Dispatchers.IO) {
+        // 1. Try Bosfor apiai Chatbot API first
+        try {
+            val chatResponse = RetrofitClient.bosforApiService.sendChatQuestion(latestPrompt)
+            val textValue = chatResponse.cevap
+            if (!textValue.isNullOrBlank()) {
+                return@withContext textValue
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // 2. Fallback to Gemini if Bosfor API fails
         val apiKey = BuildConfig.GEMINI_API_KEY
         val modelName = "gemini-3.5-flash"
-
-        // Map ChatMessage structure to Gemini Content list
         val contents = mutableListOf<Content>()
         
-        // Feed conversation history (limited to avoid token overflow)
         history.takeLast(15).forEach { msg ->
-            contents.add(Content(
-                parts = listOf(Part(text = msg.text))
-            ))
+            contents.add(Content(parts = listOf(Part(text = msg.text))))
         }
-        
-        // Add current message
-        contents.add(Content(
-            parts = listOf(Part(text = latestPrompt))
-        ))
+        contents.add(Content(parts = listOf(Part(text = latestPrompt))))
 
         val request = GenerateContentRequest(
             contents = contents,
-            generationConfig = GenerationConfig(
-                temperature = 0.7f
-            ),
+            generationConfig = GenerationConfig(temperature = 0.7f),
             systemInstruction = Content(
                 parts = listOf(Part(text = "Sen öğrencilerin sorularını samimi, motive edici ve öğretici bir dille cevaplayan uzman bir Ödev Pro asistanısın. Kısa, net, anlaşılır cevaplar ver. Öğrencinin ilerlemesini destekle."))
             )

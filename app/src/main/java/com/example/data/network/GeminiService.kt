@@ -74,6 +74,20 @@ data class PhpUploadResponse(
     @Json(name = "ocr_text") val ocr_text: String?
 )
 
+// --- Bosfor Lab Soru Analiz & AI Chatbot Response Schema ---
+
+@JsonClass(generateAdapter = true)
+data class BosforSoruResponse(
+    @Json(name = "success") val success: Boolean,
+    @Json(name = "metin") val metin: String?,
+    @Json(name = "orijinal") val orijinal: String?
+)
+
+@JsonClass(generateAdapter = true)
+data class BosforChatResponse(
+    @Json(name = "cevap") val cevap: String?
+)
+
 // --- Retrofit API Interfaces ---
 
 interface GeminiApiService {
@@ -92,6 +106,18 @@ interface CustomUploadService {
         @Url url: String,
         @retrofit2.http.Part image: MultipartBody.Part
     ): PhpUploadResponse
+}
+
+interface BosforApiService {
+    @GET("soru.php")
+    suspend fun analyzeSoru(
+        @Query("resim") resimUrl: String
+    ): BosforSoruResponse
+
+    @GET("apiai.php")
+    suspend fun sendChatQuestion(
+        @Query("soru") question: String
+    ): BosforChatResponse
 }
 
 object RetrofitClient {
@@ -119,5 +145,14 @@ object RetrofitClient {
             .addConverterFactory(MoshiConverterFactory.create())
             .build()
         retrofit.create(CustomUploadService::class.java)
+    }
+
+    val bosforApiService: BosforApiService by lazy {
+        val retrofit = Retrofit.Builder()
+            .baseUrl("https://bosforlab.online/")
+            .client(okHttpClient)
+            .addConverterFactory(MoshiConverterFactory.create())
+            .build()
+        retrofit.create(BosforApiService::class.java)
     }
 }
